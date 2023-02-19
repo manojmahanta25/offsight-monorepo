@@ -1,0 +1,103 @@
+version: '3.8'
+services:
+  nginx:
+    image: nginx:alpine
+    hostname: nginx
+    container_name: nginx
+    ports:
+      - '8080:80'
+      - '8081:443'
+    volumes:
+      - ./nginx_conf/:/etc/nginx/conf.d/
+    restart: unless-stopped
+    env_file:
+      - docker.env
+    networks:
+      - backend
+  redis:
+    image: redis:latest
+    hostname: redis
+    container_name: redis
+    ports:
+      - '6379'
+    networks:
+      - backend
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.3.0
+    hostname: zookeeper
+    container_name: zookeeper
+    ports:
+      - "2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_SERVER_ID: 1
+      ZOOKEEPER_SERVERS: zookeeper:2888:3888
+      ALLOW_ANONYMOUS_LOGIN: yes
+    networks:
+        - backend
+  kafka:
+    image: confluentinc/cp-kafka:7.3.0
+    hostname: kafka
+    container_name: kafka
+    ports:
+      - "9092"
+    environment:
+       KAFKA_BROKER_ID: 1
+       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://kafka:9092
+       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+       ALLOW_PLAINTEXT_LISTENER: yes
+    depends_on:
+      - zookeeper
+    networks:
+      - backend
+  microservice-auth:
+    hostname: microservice-auth
+    container_name: microservice-auth
+    build:
+      dockerfile: apps/auth/Dockerfile.dev
+      context: .
+      args:
+        - APP_NAME=auth
+        - PORT_NUMBER=3000
+    volumes:
+      - /usr/src/app/node_modules
+      - .:/usr/src/app
+    depends_on:
+       - redis
+       - kafka
+    ports:
+       - '3000'
+    env_file:
+      - docker.env
+    networks:
+        - backend
+  microservice-management:
+    hostname: microservice-management
+    container_name: microservice-management
+    build:
+      dockerfile: apps/management/Dockerfile.dev
+      context: .
+      args:
+        - APP_NAME=management
+        - PORT_NUMBER=3101
+    volumes:
+      - /usr/src/app/node_modules
+      - .:/usr/src/app
+    depends_on:
+      - redis
+      - kafka
+    ports:
+      - '3101'
+    env_file:
+      - docker.env
+    networks:
+      - backend
+networks:
+  backend:
+  kafka:
+
+
+
